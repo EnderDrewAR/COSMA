@@ -797,7 +797,7 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 1
-  m_Color: {r: 0.1792453, g: 0.1750178, b: 0.1750178, a: 1}
+  m_Color: {r: 0.01886791, g: 0.01886791, b: 0.01886791, a: 1}
   m_Intensity: 2
   m_Range: 10
   m_SpotAngle: 30
@@ -841,7 +841,7 @@ Light:
   m_LightShadowCasterMode: 0
   m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 1
-  m_ColorTemperature: 9823
+  m_ColorTemperature: 1500
   m_UseColorTemperature: 1
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
@@ -884,7 +884,7 @@ MonoBehaviour:
   m_CustomShadowLayers: 0
   m_LightCookieSize: {x: 1, y: 1}
   m_LightCookieOffset: {x: 0, y: 0}
-  m_SoftShadowQuality: 1
+  m_SoftShadowQuality: 3
   m_RenderingLayersMask:
     serializedVersion: 0
     m_Bits: 1
@@ -1411,7 +1411,7 @@ Transform:
   m_GameObject: {fileID: 761961928}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.82, y: -0, z: -26.07}
+  m_LocalPosition: {x: -3.82, y: -0, z: -26.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1553,7 +1553,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 17fa27b7a8974d643b1d364de571d999, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SunSensor
-  _sun: {fileID: 1137951551}
+  _sun: {fileID: 1797255838}
 --- !u!224 &980820997 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8681812844699859465, guid: f166ff39c435c694bbac5919ea73996e, type: 3}
@@ -1728,53 +1728,6 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 8681812844699859465, guid: f166ff39c435c694bbac5919ea73996e, type: 3}
   m_PrefabInstance: {fileID: 5143917896416418961}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1137951550
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1137951551}
-  - component: {fileID: 1137951552}
-  m_Layer: 0
-  m_Name: Sun
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1137951551
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1137951550}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0.072604485, y: -0, z: -0, w: 0.9973608}
-  m_LocalPosition: {x: -3.9857402, y: 2.6, z: -102.79567}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1797255838}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 8.327, y: 0, z: 0}
---- !u!114 &1137951552
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1137951550}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 87b0162f7c1ac4547b046d09edfc3f8a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sun
-  _intensity: 1000
-  _color: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!1 &1206262240
 GameObject:
   m_ObjectHideFlags: 0
@@ -2377,8 +2330,9 @@ GameObject:
   - component: {fileID: 1797255838}
   - component: {fileID: 1797255840}
   - component: {fileID: 1797255839}
+  - component: {fileID: 1797255841}
   m_Layer: 0
-  m_Name: Spot Light
+  m_Name: Sun
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2392,12 +2346,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1797255837}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -4.1, z: -28.2}
+  m_LocalRotation: {x: 0.072604485, y: -0, z: -0, w: 0.9973608}
+  m_LocalPosition: {x: -38.3, y: 14.6069145, z: -108.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1137951551}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1797255839
 MonoBehaviour:
@@ -2439,10 +2393,10 @@ Light:
   serializedVersion: 12
   m_Type: 0
   m_Color: {r: 0.6603774, g: 0.599792, b: 0, a: 1}
-  m_Intensity: 50000
-  m_Range: 500
-  m_SpotAngle: 30
-  m_InnerSpotAngle: 21.80208
+  m_Intensity: 100000
+  m_Range: 1000
+  m_SpotAngle: 87.84282
+  m_InnerSpotAngle: 56.195087
   m_CookieSize2D: {x: 0.5, y: 0.5}
   m_Shadows:
     m_Type: 2
@@ -2478,7 +2432,7 @@ Light:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RenderingLayerMask: 1
-  m_Lightmapping: 1
+  m_Lightmapping: 4
   m_LightShadowCasterMode: 0
   m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 500
@@ -2493,6 +2447,20 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
+--- !u!114 &1797255841
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1797255837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 87b0162f7c1ac4547b046d09edfc3f8a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sun
+  _intensity: 1000
+  _color: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!224 &1839669337 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8681812844699859465, guid: f166ff39c435c694bbac5919ea73996e, type: 3}
@@ -2915,7 +2883,7 @@ Transform:
   m_GameObject: {fileID: 1909102068}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0.7071068, z: 0.7071068, w: 0}
-  m_LocalPosition: {x: 0, y: -0, z: 73.9}
+  m_LocalPosition: {x: -0.2, y: -0, z: 99.6}
   m_LocalScale: {x: 40, y: 40, z: 40}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -3220,6 +3188,14 @@ PrefabInstance:
       propertyPath: m_Mesh
       value: 
       objectReference: {fileID: 2101658382}
+    - target: {fileID: 11401934, guid: c2e22098ce7c8da4590cceb5113bd50e, type: 3}
+      propertyPath: Sun
+      value: 
+      objectReference: {fileID: 410087040}
+    - target: {fileID: 11401934, guid: c2e22098ce7c8da4590cceb5113bd50e, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -4857,7 +4833,7 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 761961929}
   - {fileID: 1885995709}
-  - {fileID: 1137951551}
+  - {fileID: 1797255838}
   - {fileID: 1724119962}
   - {fileID: 1909102072}
   - {fileID: 1921209842}
