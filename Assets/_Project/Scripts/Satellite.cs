@@ -3,6 +3,7 @@ using UnityEngine;
 public class Satellite : MonoBehaviour
 {
     [SerializeField] private float _rotationForce = 10f;
+    [SerializeField] private SunSensor _sunSensor;
     
     private Rigidbody _rigidbody;
     private Vector3 _torqueInput = Vector3.zero;
@@ -19,7 +20,23 @@ public class Satellite : MonoBehaviour
         _defaultPosition = transform.position;
         _defaultRotation = transform.rotation;
     }
-
+    private void Update()
+    {
+        if (_sunSensor != null)
+        {
+            float sunValue = _sunSensor.GetValue();
+        
+            if (sunValue > 0.8f)
+            {
+                // Debug.Log("🔋 Зарядка от Солнца!");
+            }
+        
+            if (sunValue < 0.3f)
+            {
+                // RotateRight(); // ваш метод поворота
+            }
+        }
+    }
     private void FixedUpdate()
     {
         if (_torqueInput != Vector3.zero)
