@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Satellite : MonoBehaviour
 {
-    [SerializeField] private float _rotationForce = 10f;
+    [SerializeField] private float _rotationForce = 1f;
     [SerializeField] private SunSensor _sunSensor;
     
     private Rigidbody _rigidbody;
@@ -28,7 +28,7 @@ public class Satellite : MonoBehaviour
         
             if (sunValue > 0.8f)
             {
-                // Debug.Log("🔋 Зарядка от Солнца!");
+                // Debug.Log("Зарядка от Солнца!");
             }
         
             if (sunValue < 0.3f)
