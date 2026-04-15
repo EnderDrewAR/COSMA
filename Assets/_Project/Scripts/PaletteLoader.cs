@@ -3,14 +3,24 @@ using UnityEngine.UI;
 
 public class PaletteLoader : MonoBehaviour
 {
-    public SatellitePalette palette; // Привяжи asset через инспектор
+    [SerializeField] private SatellitePalette palette;
+    [SerializeField] private GameObject blockPrefab;
+    [SerializeField] private Transform container;
 
     void Start()
     {
-        foreach (var block in palette.Blocks)
+        if (palette == null || blockPrefab == null || container == null) return;
+
+        for (int i = 0; i < palette.Blocks.Count; i++)
         {
-            // Создай кнопку в UI для каждого блока
-            // GameObject button = CreateButton(block.DisplayName, block.icon);
+            var block = palette.Blocks[i];
+            var instance = Instantiate(blockPrefab, container);
+            var draggable = instance.GetComponent<DraggableItem>();
+            if (draggable != null)
+            {
+                draggable.SetBlockData(block);
+                draggable.SetIndex(i + 1);
+            }
         }
     }
 }

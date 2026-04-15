@@ -94,13 +94,18 @@ public class Satellite : MonoBehaviour
     public void RotateLeft() => _torqueInput = Vector3.down;
     public void RotateUp() => _torqueInput = Vector3.right;
     public void RotateDown() => _torqueInput = Vector3.left;
-    
+
     public void Reset()
     {
         _rigidbody.linearVelocity = Vector3.zero;
         _rigidbody.angularVelocity = Vector3.zero;
-        
+
         transform.position = _defaultPosition;
-        transform.rotation = _defaultRotation; 
+        transform.rotation = _defaultRotation;
     }
+
+    // Read-only status properties for UI
+    public Vector3 CurrentAngularVelocity => _rigidbody != null ? _rigidbody.angularVelocity : Vector3.zero;
+    public float CurrentOrbitAngle => _orbitAngle;
+    public bool IsStable => _rigidbody != null && _rigidbody.angularVelocity.magnitude < 0.1f;
 }
