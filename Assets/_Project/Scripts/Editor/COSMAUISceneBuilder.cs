@@ -3,798 +3,661 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
-using UnityEngine.SceneManagement;
 using TMPro;
 
 /// <summary>
-/// COSMA UI Scene Builder
-/// Автоматически создаёт весь UI в сцене при открытии Unity.
-/// Запускается один раз — после этого флаг COSMA_UI_BUILT сохраняется.
-/// Можно запустить вручную: COSMA → Rebuild UI Scene
+/// COSMA UI Scene Builder v3 — matches target screenshot exactly.
+/// Auto-runs on SampleScene open. Manual: COSMA → Rebuild UI Scene
 /// </summary>
 [InitializeOnLoad]
 public static class COSMAUISceneBuilder
 {
-    private const string BUILT_KEY = "COSMA_UI_BUILT_v2";
+    private const string SESSION_KEY = "COSMA_UI_BUILT_v3";
+
+    // ── Colors ──────────────────────────────────────────
+    static readonly Color BG_PANEL    = new Color(0.06f, 0.06f, 0.09f, 0.91f);
+    static readonly Color BG_HEADER   = new Color(0.10f, 0.10f, 0.15f, 1.00f);
+    static readonly Color BG_ROW_A    = new Color(0.09f, 0.09f, 0.13f, 1.00f);
+    static readonly Color BG_ROW_B    = new Color(0.11f, 0.11f, 0.16f, 1.00f);
+    static readonly Color BG_BTN      = new Color(0.15f, 0.15f, 0.22f, 1.00f);
+    static readonly Color BG_BTN_CTRL = new Color(0.12f, 0.12f, 0.18f, 1.00f);
+    static readonly Color ORANGE      = new Color(1.00f, 0.42f, 0.21f, 1.00f);
+    static readonly Color BLUE        = new Color(0.00f, 0.66f, 0.91f, 1.00f);
+    static readonly Color TEXT_PRI    = Color.white;
+    static readonly Color TEXT_SEC    = new Color(0.72f, 0.72f, 0.78f, 1.00f);
+    static readonly Color TEXT_MUTED  = new Color(0.38f, 0.38f, 0.45f, 1.00f);
+    static readonly Color EMPTY_LINE  = new Color(0.28f, 0.28f, 0.35f, 1.00f);
+
+    // ── Entry points ─────────────────────────────────────
 
     static COSMAUISceneBuilder()
     {
-        EditorApplication.delayCall += TryAutoSetup;
+        EditorApplication.delayCall          += TryAutoSetup;
+        EditorSceneManager.sceneOpened       += OnSceneOpened;
     }
 
-    private static void TryAutoSetup()
+    static void OnSceneOpened(UnityEngine.SceneManagement.Scene scene,
+                               OpenSceneMode mode)
     {
-        if (SessionState.GetBool(BUILT_KEY, false)) return;
-
-        string activeScene = EditorSceneManager.GetActiveScene().name;
-        if (activeScene != "SampleScene") return;
-
-        SessionState.SetBool(BUILT_KEY, true);
+        if (scene.name != "SampleScene") return;
+        if (SessionState.GetBool(SESSION_KEY, false)) return;
+        SessionState.SetBool(SESSION_KEY, true);
         BuildUI();
+    }
+
+    static void TryAutoSetup()
+    {
+        EditorApplication.delayCall += () =>
+        {
+            if (EditorSceneManager.GetActiveScene().name != "SampleScene") return;
+            if (SessionState.GetBool(SESSION_KEY, false)) return;
+            SessionState.SetBool(SESSION_KEY, true);
+            BuildUI();
+        };
     }
 
     [MenuItem("COSMA/Rebuild UI Scene")]
     public static void BuildUI()
     {
-        var scene = EditorSceneManager.GetActiveScene();
-        GameObject canvasGO = FindOrCreateCanvas();
+        GameObject canvas = FindOrCreateCanvas();
+        GameObject hud    = FindOrCreate(canvas, "HUDLayer");
+        StretchFill(hud, canvas);
 
-        // Удаляем старые панели если есть (HUDLayer очищаем)
-        GameObject hudLayer = FindOrCreate(canvasGO, "HUDLayer");
-        RectTransform hudRT = SetupStretchRT(hudLayer, canvasGO.GetComponent<RectTransform>());
+        // ── Build panels ──────────────────────────────
+        BuildMissionPanel(hud);
+        BuildModulePanel(hud);
+        BuildProgramPanel(hud);
+        BuildControlPanel(hud);
+        BuildActionPanel(hud);
+        BuildMessagePanel(hud);
+        EnsurePopupLayer(hud);
+        EnsureDragGhostLayer(hud);
 
-        // Создаём все панели верхнего уровня
-        CreateMissionPanel(hudLayer);
-        CreateRightProgrammingRoot(hudLayer);
-        CreateBottomControlPanel(hudLayer);
-        CreateBottomActionPanel(hudLayer);
-        CreateMessagePanel(hudLayer);
-        CreatePopupLayer(hudLayer);
-        CreateDragGhostLayer(hudLayer);
-
-        // Сохраняем сцену
-        EditorSceneManager.MarkSceneDirty(scene);
-        EditorSceneManager.SaveScene(scene);
-
-        Debug.Log("[COSMA] UI Scene build complete! Check Hierarchy for new panels.");
-        EditorUtility.DisplayDialog("COSMA UI", "UI успешно создан в сцене!\n\nОткрой Hierarchy — все панели готовы.", "OK");
+        // ── Save ──────────────────────────────────────
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+        Debug.Log("[COSMA] UI built and saved.");
+        EditorUtility.DisplayDialog("COSMA", "UI создан!\nОткрой Hierarchy и Game View.", "OK");
     }
 
-    // ─────────────────────────────────────────────────
-    //  CANVAS
-    // ─────────────────────────────────────────────────
-
-    private static GameObject FindOrCreateCanvas()
+    // ══════════════════════════════════════════════════
+    //  1. MISSION PANEL   top-right, w=390 h=auto
+    // ══════════════════════════════════════════════════
+    static void BuildMissionPanel(GameObject hud)
     {
-        Canvas[] canvases = Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None);
-        foreach (var c in canvases)
-            if (c.renderMode == RenderMode.ScreenSpaceOverlay)
-                return c.gameObject;
+        var p = FindOrCreate(hud, "MissionPanel");
+        AnchorRT(p, hud, new Vector2(1,1), new Vector2(1,1), new Vector2(1,1),
+                 new Vector2(-10, -10), new Vector2(390, 0));
+        Img(p, BG_PANEL);
 
-        // Создаём Canvas если нет
-        var go = new GameObject("Canvas");
+        var vlg = Vlg(p, 14, 14, 14, 14, 8);
+        vlg.childForceExpandWidth  = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childControlWidth      = true;
+        vlg.childControlHeight     = true;
+
+        var csf = Go<ContentSizeFitter>(p);
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Header
+        var hdrGO = FindOrCreate(p, "MissionHeader");
+        LE(hdrGO, prefH: 22);
+        var hdrTMP = Tmp(hdrGO, "Цель миссии:", 13, TEXT_PRI, FontStyles.Bold,
+                         TextAlignmentOptions.MidlineLeft);
+
+        // Body
+        var bodyGO = FindOrCreate(p, "MissionBody");
+        LE(bodyGO, prefH: 100);
+        var bodyTMP = Tmp(bodyGO,
+            "Провести полную настройку и оптимизацию спутника, чтобы обеспечить " +
+            "стабильную работу его сенсоров и передачу данных на орбитальную станцию. " +
+            "Выполни все этапы конфигурации: от калибровки программного обеспечения " +
+            "до тестирования связи, чтобы миссия прошла без сбоев.",
+            11, TEXT_SEC, FontStyles.Normal, TextAlignmentOptions.TopLeft);
+        bodyTMP.enableWordWrapping = true;
+        bodyTMP.overflowMode       = TextOverflowModes.Overflow;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  2. MODULE PANEL   center-right, w=155 h=auto
+    // ══════════════════════════════════════════════════
+    static void BuildModulePanel(GameObject hud)
+    {
+        var p = FindOrCreate(hud, "ModulePanel");
+        AnchorRT(p, hud, new Vector2(1,1), new Vector2(1,1), new Vector2(1,1),
+                 new Vector2(-10, -175), new Vector2(155, 0));
+        Img(p, BG_PANEL);
+
+        var vlg = Vlg(p, 0, 0, 0, 0, 0);
+        vlg.childForceExpandWidth  = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childControlWidth      = true;
+        vlg.childControlHeight     = true;
+
+        var csf = Go<ContentSizeFitter>(p);
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        (string name, bool expanded, string[] cmds)[] modules = {
+            ("Модуль маховика",       false, new string[0]),
+            ("Модуль солнечной батареи", false, new string[0]),
+            ("Модуль камеры",         false, new string[0]),
+            ("Модуль передатчика",    false, new string[0]),
+            ("Модуль базовых команд", true,  new[]{"if","jump","copy to","jump if"}),
+        };
+
+        for (int i = 0; i < modules.Length; i++)
+        {
+            var (mName, mExpanded, cmds) = modules[i];
+            BuildModuleRow(p, $"Module_{i:D2}", mName, mExpanded, cmds);
+        }
+    }
+
+    static void BuildModuleRow(GameObject parent, string id, string label,
+                               bool expanded, string[] cmds)
+    {
+        var row = FindOrCreate(parent, id);
+        LE(row, prefH: expanded ? (28 + 32 * ((cmds.Length + 1) / 2)) : 28);
+        Img(row, BG_PANEL);
+
+        var vlg = Vlg(row, 0, 0, 0, 0, 0);
+        vlg.childForceExpandWidth  = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childControlWidth      = true;
+        vlg.childControlHeight     = true;
+
+        // Header row
+        var hdr = FindOrCreate(row, "Header");
+        LE(hdr, prefH: 28);
+        Img(hdr, new Color(0,0,0,0));
+
+        var hlg = Hlg(hdr, 8, 4, 4, 4, 4);
+        hlg.childForceExpandWidth  = false;
+        hlg.childForceExpandHeight = true;
+        hlg.childControlWidth      = true;
+        hlg.childControlHeight     = true;
+        hlg.childAlignment         = TextAnchor.MiddleLeft;
+
+        // Triangle icon
+        var triGO = FindOrCreate(hdr, "Triangle");
+        LE(triGO, prefW: 14);
+        Tmp(triGO, expanded ? "\u25B3" : "\u25BD", 10,
+            expanded ? ORANGE : TEXT_SEC,
+            FontStyles.Normal, TextAlignmentOptions.Center);
+
+        // Module name
+        var lblGO = FindOrCreate(hdr, "Label");
+        LE(lblGO, flexW: 1);
+        Tmp(lblGO, label, 11,
+            expanded ? ORANGE : TEXT_SEC,
+            expanded ? FontStyles.Bold : FontStyles.Normal,
+            TextAlignmentOptions.MidlineLeft);
+
+        // Command buttons (only when expanded)
+        if (expanded && cmds.Length > 0)
+        {
+            // Layout in pairs: 2 buttons per row
+            for (int r = 0; r < (cmds.Length + 1) / 2; r++)
+            {
+                var cmdRow = FindOrCreate(row, $"CmdRow_{r}");
+                LE(cmdRow, prefH: 30);
+                var rowHlg = Hlg(cmdRow, 4, 6, 6, 2, 2);
+                rowHlg.childForceExpandWidth  = true;
+                rowHlg.childForceExpandHeight = true;
+                rowHlg.childControlWidth      = true;
+                rowHlg.childControlHeight     = true;
+                rowHlg.childAlignment         = TextAnchor.MiddleLeft;
+
+                for (int c = 0; c < 2; c++)
+                {
+                    int idx = r * 2 + c;
+                    if (idx >= cmds.Length) break;
+                    var btnGO = FindOrCreate(cmdRow, $"Cmd_{idx}");
+                    LE(btnGO, flexW: 1, prefH: 26);
+                    var btnImg = Img(btnGO, BG_BTN);
+                    var btn = Go<Button>(btnGO);
+                    btn.targetGraphic = btnImg;
+                    var bc = btn.colors;
+                    bc.highlightedColor = new Color(0.25f, 0.25f, 0.38f, 1f);
+                    bc.pressedColor     = new Color(0.10f, 0.10f, 0.15f, 1f);
+                    btn.colors = bc;
+                    Go<CanvasGroup>(btnGO);
+
+                    var lbl = FindOrCreate(btnGO, "Lbl");
+                    FillRT(lbl, btnGO);
+                    Tmp(lbl, cmds[idx], 11, TEXT_PRI, FontStyles.Normal,
+                        TextAlignmentOptions.Center);
+                }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════
+    //  3. PROGRAM PANEL   right side, w=230 h=470
+    // ══════════════════════════════════════════════════
+    static void BuildProgramPanel(GameObject hud)
+    {
+        var p = FindOrCreate(hud, "ProgramPanel");
+        AnchorRT(p, hud, new Vector2(1,1), new Vector2(1,1), new Vector2(1,1),
+                 new Vector2(-10, -175), new Vector2(230, 470));
+
+        // Offset to sit right of ModulePanel
+        var rt = p.GetComponent<RectTransform>();
+        rt.anchoredPosition = new Vector2(-175, -175);
+
+        Img(p, BG_PANEL);
+
+        var vlg = Vlg(p, 0, 0, 0, 0, 0);
+        vlg.childForceExpandWidth  = true;
+        vlg.childForceExpandHeight = false;
+        vlg.childControlWidth      = true;
+        vlg.childControlHeight     = true;
+
+        // ── Scroll view ──
+        var scroll = FindOrCreate(p, "ProgramScroll");
+        LE(scroll, flexH: 1, flexW: 1);
+        SetupScroll(scroll, out GameObject content);
+        content.name = "ProgramLinesContainer";
+
+        var cVlg = Vlg(content, 0, 0, 0, 0, 0);
+        cVlg.childForceExpandWidth  = true;
+        cVlg.childForceExpandHeight = false;
+        cVlg.childControlWidth      = true;
+        cVlg.childControlHeight     = true;
+
+        var csf = Go<ContentSizeFitter>(content);
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Demo: first 3 lines have placeholder commands
+        string[] demoCommands = { "copy to", "jump", "jump if", "", "", "", "", "", "", "", "", "", "" };
+
+        for (int i = 1; i <= 13; i++)
+            BuildProgramLine(content, i, i <= 3 ? demoCommands[i - 1] : "");
+
+        // ── More indicator "..." ──
+        var moreGO = FindOrCreate(p, "MoreDots");
+        LE(moreGO, prefH: 28);
+        Img(moreGO, BG_PANEL);
+        var moreTmp = Tmp(moreGO, "\u2026", 14, TEXT_MUTED, FontStyles.Normal,
+                          TextAlignmentOptions.Center);
+    }
+
+    static void BuildProgramLine(GameObject parent, int idx, string command)
+    {
+        var line = FindOrCreate(parent, $"ProgramLine_{idx:D2}");
+        LE(line, prefH: 36);
+        Img(line, idx % 2 == 0 ? BG_ROW_A : BG_ROW_B);
+
+        var hlg = Hlg(line, 0, 0, 0, 0, 0);
+        hlg.childForceExpandWidth  = false;
+        hlg.childForceExpandHeight = true;
+        hlg.childControlWidth      = true;
+        hlg.childControlHeight     = true;
+        hlg.childAlignment         = TextAnchor.MiddleLeft;
+        hlg.spacing                = 0;
+
+        // Line number
+        var numGO = FindOrCreate(line, "Num");
+        LE(numGO, prefW: 32);
+        Img(numGO, new Color(0,0,0,0));
+        var numTmp = Tmp(numGO, idx.ToString("D2"), 12, ORANGE, FontStyles.Bold,
+                         TextAlignmentOptions.Center);
+
+        // Content area (command chip or empty line)
+        var slotGO = FindOrCreate(line, "Slot");
+        LE(slotGO, flexW: 1);
+        Img(slotGO, new Color(0,0,0,0));
+
+        var slotHlg = Hlg(slotGO, 0, 4, 4, 4, 4);
+        slotHlg.childAlignment         = TextAnchor.MiddleLeft;
+        slotHlg.childForceExpandWidth  = false;
+        slotHlg.childForceExpandHeight = true;
+        slotHlg.childControlWidth      = true;
+        slotHlg.childControlHeight     = true;
+
+        if (!string.IsNullOrEmpty(command))
+        {
+            // Command chip
+            var chipGO = FindOrCreate(slotGO, "Chip");
+            LE(chipGO, prefH: 24, prefW: Mathf.Max(60, command.Length * 7 + 16));
+            Img(chipGO, BG_BTN);
+            Go<CanvasGroup>(chipGO);
+
+            var chipHlg = Hlg(chipGO, 0, 8, 8, 0, 0);
+            chipHlg.childAlignment         = TextAnchor.MiddleCenter;
+            chipHlg.childForceExpandWidth  = true;
+            chipHlg.childForceExpandHeight = true;
+            chipHlg.childControlWidth      = true;
+            chipHlg.childControlHeight     = true;
+
+            var chipLbl = FindOrCreate(chipGO, "Lbl");
+            FillRT(chipLbl, chipGO);
+            Tmp(chipLbl, command, 11, TEXT_PRI, FontStyles.Normal,
+                TextAlignmentOptions.Center);
+        }
+        else
+        {
+            // Empty line indicator
+            var emptyGO = FindOrCreate(slotGO, "EmptyLine");
+            LE(emptyGO, prefW: 60, prefH: 3);
+            Img(emptyGO, EMPTY_LINE);
+        }
+    }
+
+    // ══════════════════════════════════════════════════
+    //  4. CONTROL PANEL   bottom-left  □ ▶ ─── ▷ ▷▷
+    // ══════════════════════════════════════════════════
+    static void BuildControlPanel(GameObject hud)
+    {
+        var p = FindOrCreate(hud, "ControlPanel");
+        AnchorRT(p, hud, new Vector2(0,0), new Vector2(0,0), new Vector2(0,0),
+                 new Vector2(10, 10), new Vector2(235, 54));
+        Img(p, BG_PANEL);
+
+        var hlg = Hlg(p, 8, 8, 8, 8, 8);
+        hlg.childForceExpandWidth  = false;
+        hlg.childForceExpandHeight = true;
+        hlg.childControlWidth      = true;
+        hlg.childControlHeight     = true;
+        hlg.childAlignment         = TextAnchor.MiddleCenter;
+
+        // □ Stop
+        MakeCtrlBtn(p, "StopBtn", "\u25A1", 38);
+        // ▶ Play
+        MakeCtrlBtn(p, "PlayBtn", "\u25B6", 38);
+        // Progress slider
+        var sliderGO = FindOrCreate(p, "ProgressSlider");
+        LE(sliderGO, prefW: 70, prefH: 16);
+        MakeSimpleSlider(sliderGO);
+        // ▷ Step
+        MakeCtrlBtn(p, "StepBtn",  "\u25B7",     32);
+        // ▷▷ Fast step
+        MakeCtrlBtn(p, "FastBtn",  "\u25B7\u25B7", 38);
+    }
+
+    static void MakeCtrlBtn(GameObject parent, string name, string icon, float w)
+    {
+        var go = FindOrCreate(parent, name);
+        LE(go, prefW: w, prefH: 38);
+        var img = Img(go, BG_BTN_CTRL);
+        var btn = Go<Button>(go);
+        btn.targetGraphic = img;
+        var c = btn.colors;
+        c.normalColor      = BG_BTN_CTRL;
+        c.highlightedColor = new Color(0.22f, 0.22f, 0.32f, 1f);
+        c.pressedColor     = new Color(0.08f, 0.08f, 0.12f, 1f);
+        btn.colors = c;
+
+        var lbl = FindOrCreate(go, "Lbl");
+        FillRT(lbl, go);
+        Tmp(lbl, icon, 14, TEXT_PRI, FontStyles.Normal, TextAlignmentOptions.Center);
+    }
+
+    static void MakeSimpleSlider(GameObject go)
+    {
+        var bgImg = Img(go, new Color(0.18f, 0.18f, 0.26f, 1f));
+
+        var fillArea = FindOrCreate(go, "FillArea");
+        var fillRT = FillRT(fillArea, go);
+        fillRT.offsetMin = new Vector2(4, 4);
+        fillRT.offsetMax = new Vector2(-4, -4);
+
+        var fill = FindOrCreate(fillArea, "Fill");
+        var fillImg = Img(fill, ORANGE);
+        var fillFillRT = fill.GetComponent<RectTransform>();
+        fillFillRT.anchorMin = new Vector2(0, 0);
+        fillFillRT.anchorMax = new Vector2(0.3f, 1f);
+        fillFillRT.sizeDelta = Vector2.zero;
+        fillFillRT.anchoredPosition = Vector2.zero;
+
+        var slider = Go<Slider>(go);
+        slider.targetGraphic  = bgImg;
+        slider.fillRect       = fillFillRT;
+        slider.value          = 0f;
+        slider.minValue       = 0f;
+        slider.maxValue       = 1f;
+        slider.wholeNumbers   = false;
+        slider.direction      = Slider.Direction.LeftToRight;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  5. ACTION PANEL   bottom-right  ↩ ⧉ ⧋ 🗑
+    // ══════════════════════════════════════════════════
+    static void BuildActionPanel(GameObject hud)
+    {
+        var p = FindOrCreate(hud, "ActionPanel");
+        AnchorRT(p, hud, new Vector2(1,0), new Vector2(1,0), new Vector2(1,0),
+                 new Vector2(-10, 10), new Vector2(200, 54));
+        Img(p, BG_PANEL);
+
+        var hlg = Hlg(p, 6, 8, 8, 8, 8);
+        hlg.childForceExpandWidth  = true;
+        hlg.childForceExpandHeight = true;
+        hlg.childControlWidth      = true;
+        hlg.childControlHeight     = true;
+        hlg.childAlignment         = TextAnchor.MiddleCenter;
+
+        MakeActionBtn(p, "UndoBtn",   "\u21A9", new Color(0.55f, 0.55f, 0.65f, 0.9f));
+        MakeActionBtn(p, "CopyBtn",   "\u2398", new Color(0.55f, 0.55f, 0.65f, 0.9f));
+        MakeActionBtn(p, "PasteBtn",  "\u2399", new Color(0.55f, 0.55f, 0.65f, 0.9f));
+        MakeActionBtn(p, "DeleteBtn", "\u2715", new Color(0.65f, 0.20f, 0.20f, 0.9f));
+    }
+
+    static void MakeActionBtn(GameObject parent, string name, string icon, Color col)
+    {
+        var go = FindOrCreate(parent, name);
+        var img = Img(go, col);
+        var btn = Go<Button>(go);
+        btn.targetGraphic = img;
+        var c = btn.colors;
+        c.normalColor      = col;
+        c.highlightedColor = Color.Lerp(col, Color.white, 0.25f);
+        c.pressedColor     = col * 0.7f;
+        btn.colors = c;
+
+        var lbl = FindOrCreate(go, "Lbl");
+        FillRT(lbl, go);
+        Tmp(lbl, icon, 16, TEXT_PRI, FontStyles.Normal, TextAlignmentOptions.Center);
+    }
+
+    // ══════════════════════════════════════════════════
+    //  6. MESSAGE PANEL   bottom-center (hidden)
+    // ══════════════════════════════════════════════════
+    static void BuildMessagePanel(GameObject hud)
+    {
+        var p = FindOrCreate(hud, "MessagePanel");
+        AnchorRT(p, hud, new Vector2(0.5f,0), new Vector2(0.5f,0), new Vector2(0.5f,0),
+                 new Vector2(0, 72), new Vector2(560, 44));
+        Img(p, new Color(0, 0, 0, 0));
+
+        var lbl = FindOrCreate(p, "Text");
+        FillRT(lbl, p);
+        Tmp(lbl, "", 13, TEXT_PRI, FontStyles.Normal, TextAlignmentOptions.Center);
+        p.SetActive(false);
+    }
+
+    // ══════════════════════════════════════════════════
+    //  7. POPUP / DRAG GHOST LAYERS
+    // ══════════════════════════════════════════════════
+    static void EnsurePopupLayer(GameObject hud)
+    {
+        var layer = FindOrCreate(hud, "PopupLayer");
+        StretchFill(layer, hud);
+        var img = Img(layer, new Color(0,0,0,0));
+        img.raycastTarget = false;
+        layer.SetActive(false);
+    }
+
+    static void EnsureDragGhostLayer(GameObject hud)
+    {
+        var layer = FindOrCreate(hud, "DragGhostLayer");
+        StretchFill(layer, hud);
+        var img = Img(layer, new Color(0,0,0,0));
+        img.raycastTarget = false;
+        var c = Go<Canvas>(layer);
+        c.overrideSorting = true;
+        c.sortingOrder    = 100;
+        Go<GraphicRaycaster>(layer);
+    }
+
+    // ══════════════════════════════════════════════════
+    //  SCROLL VIEW
+    // ══════════════════════════════════════════════════
+    static void SetupScroll(GameObject root, out GameObject content)
+    {
+        Img(root, new Color(0,0,0,0.01f));
+
+        var viewport = FindOrCreate(root, "Viewport");
+        StretchFill(viewport, root);
+        Img(viewport, new Color(0,0,0,0));
+        var mask = Go<Mask>(viewport);
+        mask.showMaskGraphic = false;
+
+        var contentGO = FindOrCreate(viewport, "Content");
+        var cRT = Go<RectTransform>(contentGO);
+        cRT.anchorMin = new Vector2(0,1);
+        cRT.anchorMax = new Vector2(1,1);
+        cRT.pivot     = new Vector2(0.5f,1f);
+        cRT.anchoredPosition = Vector2.zero;
+        cRT.sizeDelta = Vector2.zero;
+
+        var sr = Go<ScrollRect>(root);
+        sr.viewport        = viewport.GetComponent<RectTransform>();
+        sr.content         = cRT;
+        sr.vertical        = true;
+        sr.horizontal      = false;
+        sr.movementType    = ScrollRect.MovementType.Elastic;
+        sr.scrollSensitivity = 25f;
+        sr.inertia         = true;
+
+        content = contentGO;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  CANVAS
+    // ══════════════════════════════════════════════════
+    static GameObject FindOrCreateCanvas()
+    {
+        foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+            if (c.renderMode == RenderMode.ScreenSpaceOverlay) return c.gameObject;
+
+        var go     = new GameObject("Canvas");
         var canvas = go.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 0;
 
         var scaler = go.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.uiScaleMode        = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1280, 720);
+        scaler.screenMatchMode    = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
 
         go.AddComponent<GraphicRaycaster>();
         return go;
     }
 
-    // ─────────────────────────────────────────────────
-    //  MISSION PANEL  (top-left, 420x180)
-    // ─────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════════
 
-    private static void CreateMissionPanel(GameObject parent)
+    static GameObject FindOrCreate(GameObject parent, string name)
     {
-        var panel = FindOrCreate(parent, "MissionPanel");
-        var rt = SetupRT(panel, parent.GetComponent<RectTransform>(),
-            new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
-            new Vector2(20, -20), new Vector2(420, 180));
-
-        AddDarkImage(panel, new Color(0.08f, 0.08f, 0.12f, 0.88f));
-
-        // Vertical Layout
-        var vlg = GetOrAdd<VerticalLayoutGroup>(panel);
-        vlg.padding = new RectOffset(14, 14, 12, 12);
-        vlg.spacing = 6;
-        vlg.childForceExpandWidth = true;
-        vlg.childForceExpandHeight = false;
-        vlg.childControlWidth = true;
-        vlg.childControlHeight = true;
-
-        // Header row
-        var headerRow = FindOrCreate(panel, "MissionHeader");
-        SetupHorizontalRow(headerRow, panel, 28);
-
-        var iconLabel = FindOrCreate(headerRow, "MissionIcon");
-        SetupLabel(iconLabel, headerRow, "\u25C6 MISSION", 13,
-            new Color(1f, 0.42f, 0.21f, 1f), FontStyles.Bold);
-        SetLayoutElement(iconLabel, flexibleWidth: 1);
-
-        var statusDot = FindOrCreate(headerRow, "StatusDot");
-        SetupLabel(statusDot, headerRow, "\u25CF ONLINE", 11,
-            new Color(0.2f, 0.9f, 0.4f, 1f), FontStyles.Normal);
-        SetLayoutElement(statusDot, preferredWidth: 80);
-
-        // Title
-        var titleGO = FindOrCreate(panel, "MissionTitle");
-        SetupLabel(titleGO, panel, "ORBIT ALIGNMENT SEQUENCE", 16,
-            Color.white, FontStyles.Bold);
-        SetLayoutElement(titleGO, preferredHeight: 24);
-
-        // Description
-        var descGO = FindOrCreate(panel, "MissionDescription");
-        var descTMP = SetupLabel(descGO, panel,
-            "Выровняй солнечные панели спутника для максимальной зарядки. Запусти программу из 13 команд.",
-            11, new Color(0.72f, 0.72f, 0.78f, 1f), FontStyles.Normal);
-        descTMP.enableWordWrapping = true;
-        SetLayoutElement(descGO, preferredHeight: 52);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  RIGHT PROGRAMMING ROOT  (right side, full height)
-    // ─────────────────────────────────────────────────
-
-    private static void CreateRightProgrammingRoot(GameObject parent)
-    {
-        var root = FindOrCreate(parent, "RightProgrammingRoot");
-        SetupRT(root, parent.GetComponent<RectTransform>(),
-            new Vector2(1, 0), new Vector2(1, 1), new Vector2(1, 0.5f),
-            new Vector2(-10, 0), new Vector2(680, 0));
-
-        var hlg = GetOrAdd<HorizontalLayoutGroup>(root);
-        hlg.padding = new RectOffset(0, 0, 10, 10);
-        hlg.spacing = 8;
-        hlg.childForceExpandWidth = false;
-        hlg.childForceExpandHeight = true;
-        hlg.childControlWidth = true;
-        hlg.childControlHeight = true;
-
-        // Панели внутри root
-        CreateCommandPoolPanel(root);
-        CreateProgramPanel(root);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  COMMAND POOL PANEL  (left part of RightRoot, 280px)
-    // ─────────────────────────────────────────────────
-
-    private static void CreateCommandPoolPanel(GameObject parent)
-    {
-        var panel = FindOrCreate(parent, "CommandPoolPanel");
-        var rt = panel.GetComponent<RectTransform>();
-        if (rt == null) rt = panel.AddComponent<RectTransform>();
-        SetLayoutElement(panel, preferredWidth: 280, flexibleHeight: 1);
-
-        AddDarkImage(panel, new Color(0.07f, 0.07f, 0.11f, 0.92f));
-
-        var vlg = GetOrAdd<VerticalLayoutGroup>(panel);
-        vlg.padding = new RectOffset(0, 0, 0, 0);
-        vlg.spacing = 0;
-        vlg.childForceExpandWidth = true;
-        vlg.childForceExpandHeight = false;
-        vlg.childControlWidth = true;
-        vlg.childControlHeight = true;
-
-        // ── Header bar ──
-        var headerBar = FindOrCreate(panel, "CommandPoolHeader");
-        SetLayoutElement(headerBar, preferredHeight: 40);
-        AddImage(headerBar, new Color(0.12f, 0.12f, 0.18f, 1f));
-
-        var headerVLG = GetOrAdd<VerticalLayoutGroup>(headerBar);
-        headerVLG.childAlignment = TextAnchor.MiddleCenter;
-        headerVLG.childForceExpandWidth = true;
-        headerVLG.childForceExpandHeight = true;
-
-        var headerLabel = FindOrCreate(headerBar, "CommandPoolTitle");
-        SetupLabel(headerLabel, headerBar, "ПУЛ КОМАНД", 13,
-            new Color(1f, 0.42f, 0.21f, 1f), FontStyles.Bold);
-        var lbl = headerLabel.GetComponent<TextMeshProUGUI>();
-        lbl.alignment = TextAlignmentOptions.Center;
-
-        // ── Scroll View ──
-        var scrollRoot = FindOrCreate(panel, "CommandPoolScroll");
-        SetLayoutElement(scrollRoot, flexibleHeight: 1, flexibleWidth: 1);
-        SetupScrollViewFull(scrollRoot, out GameObject content);
-
-        var contentVLG = GetOrAdd<VerticalLayoutGroup>(content);
-        contentVLG.padding = new RectOffset(8, 8, 8, 8);
-        contentVLG.spacing = 6;
-        contentVLG.childForceExpandWidth = true;
-        contentVLG.childForceExpandHeight = false;
-        contentVLG.childControlWidth = true;
-        contentVLG.childControlHeight = true;
-
-        var csf = GetOrAdd<ContentSizeFitter>(content);
-        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        // ── 7 команд ──
-        string[] commands = {
-            "\u26A1  Питание ВКЛ",
-            "\u23FB  Питание ВЫКЛ",
-            "\u2600  Считать солн. датчики",
-            "\u25B6  Считать магнитометр",
-            "\u2316  Повернуть к Земле",
-            "\u2609  Повернуть к Солнцу",
-            "\u21A9  Jump To",
-            "\u25A3  Сделать фото Земли",
-        };
-
-        Color[] cmdColors = {
-            new Color(0.2f, 0.9f, 0.4f, 1f),
-            new Color(0.9f, 0.25f, 0.25f, 1f),
-            new Color(1f, 0.75f, 0.2f, 1f),
-            new Color(0.3f, 0.7f, 1f, 1f),
-            new Color(0.3f, 0.85f, 0.85f, 1f),
-            new Color(1f, 0.65f, 0.1f, 1f),
-            new Color(0.8f, 0.5f, 1f, 1f),
-            new Color(0.4f, 0.9f, 0.7f, 1f),
-        };
-
-        for (int i = 0; i < commands.Length; i++)
-        {
-            CreateCommandPoolItem(content, $"PoolItem_{i:D2}", commands[i], cmdColors[i % cmdColors.Length]);
-        }
-    }
-
-    private static void CreateCommandPoolItem(GameObject parent, string name, string label, Color accentColor)
-    {
-        var item = FindOrCreate(parent, name);
-        SetLayoutElement(item, preferredHeight: 44);
-
-        // Background
-        var img = GetOrAdd<Image>(item);
-        img.color = new Color(0.13f, 0.13f, 0.19f, 1f);
-
-        // Make it a Button
-        var btn = GetOrAdd<Button>(item);
-        var colors = btn.colors;
-        colors.normalColor = new Color(0.13f, 0.13f, 0.19f, 1f);
-        colors.highlightedColor = new Color(0.20f, 0.20f, 0.28f, 1f);
-        colors.pressedColor = new Color(0.10f, 0.10f, 0.14f, 1f);
-        btn.colors = colors;
-        btn.targetGraphic = img;
-
-        // Also draggable - add CanvasGroup
-        var cg = GetOrAdd<CanvasGroup>(item);
-
-        // Accent bar (left side) — use a child Image
-        var accentBar = FindOrCreate(item, "AccentBar");
-        var accentRT = GetOrAdd<RectTransform>(accentBar);
-        var accentImg = GetOrAdd<Image>(accentBar);
-        accentImg.color = accentColor;
-        accentRT.anchorMin = new Vector2(0, 0);
-        accentRT.anchorMax = new Vector2(0, 1);
-        accentRT.pivot = new Vector2(0, 0.5f);
-        accentRT.anchoredPosition = Vector2.zero;
-        accentRT.sizeDelta = new Vector2(4, 0);
-
-        // Label
-        var labelGO = FindOrCreate(item, "Label");
-        var labelRT = GetOrAdd<RectTransform>(labelGO);
-        labelRT.anchorMin = new Vector2(0, 0);
-        labelRT.anchorMax = new Vector2(1, 1);
-        labelRT.pivot = new Vector2(0.5f, 0.5f);
-        labelRT.offsetMin = new Vector2(14, 0);
-        labelRT.offsetMax = new Vector2(-4, 0);
-
-        var tmp = GetOrAdd<TextMeshProUGUI>(labelGO);
-        tmp.text = label;
-        tmp.fontSize = 12;
-        tmp.color = Color.white;
-        tmp.alignment = TextAlignmentOptions.MidlineLeft;
-        tmp.enableWordWrapping = false;
-        tmp.overflowMode = TextOverflowModes.Ellipsis;
-
-        GetOrAdd<CanvasRenderer>(labelGO);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  PROGRAM PANEL  (right part of RightRoot, 380px)
-    // ─────────────────────────────────────────────────
-
-    private static void CreateProgramPanel(GameObject parent)
-    {
-        var panel = FindOrCreate(parent, "ProgramPanel");
-        var rt = panel.GetComponent<RectTransform>();
-        if (rt == null) rt = panel.AddComponent<RectTransform>();
-        SetLayoutElement(panel, preferredWidth: 380, flexibleHeight: 1);
-
-        AddDarkImage(panel, new Color(0.06f, 0.06f, 0.10f, 0.93f));
-
-        var vlg = GetOrAdd<VerticalLayoutGroup>(panel);
-        vlg.padding = new RectOffset(0, 0, 0, 0);
-        vlg.spacing = 0;
-        vlg.childForceExpandWidth = true;
-        vlg.childForceExpandHeight = false;
-        vlg.childControlWidth = true;
-        vlg.childControlHeight = true;
-
-        // ── Header bar ──
-        var headerBar = FindOrCreate(panel, "ProgramHeader");
-        SetLayoutElement(headerBar, preferredHeight: 40);
-        AddImage(headerBar, new Color(0.10f, 0.10f, 0.16f, 1f));
-
-        var headerHLG = GetOrAdd<HorizontalLayoutGroup>(headerBar);
-        headerHLG.padding = new RectOffset(14, 8, 0, 0);
-        headerHLG.spacing = 8;
-        headerHLG.childAlignment = TextAnchor.MiddleLeft;
-        headerHLG.childForceExpandWidth = false;
-        headerHLG.childForceExpandHeight = true;
-        headerHLG.childControlWidth = true;
-        headerHLG.childControlHeight = true;
-
-        var titleGO = FindOrCreate(headerBar, "ProgramTitle");
-        var titleTMP = SetupLabel(titleGO, headerBar, "ПРОГРАММА", 13,
-            new Color(0f, 0.66f, 0.91f, 1f), FontStyles.Bold);
-        SetLayoutElement(titleGO, flexibleWidth: 1);
-
-        var lineCountGO = FindOrCreate(headerBar, "LineCount");
-        SetupLabel(lineCountGO, headerBar, "13 строк", 11,
-            new Color(0.5f, 0.5f, 0.6f, 1f), FontStyles.Normal);
-        SetLayoutElement(lineCountGO, preferredWidth: 60);
-
-        // ── Scroll View ──
-        var scrollRoot = FindOrCreate(panel, "ProgramScroll");
-        SetLayoutElement(scrollRoot, flexibleHeight: 1, flexibleWidth: 1);
-        SetupScrollViewFull(scrollRoot, out GameObject content);
-
-        content.name = "ProgramLinesContainer";
-
-        var contentVLG = GetOrAdd<VerticalLayoutGroup>(content);
-        contentVLG.padding = new RectOffset(8, 8, 8, 8);
-        contentVLG.spacing = 4;
-        contentVLG.childForceExpandWidth = true;
-        contentVLG.childForceExpandHeight = false;
-        contentVLG.childControlWidth = true;
-        contentVLG.childControlHeight = true;
-
-        var csf = GetOrAdd<ContentSizeFitter>(content);
-        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        // ── 13 строк программы ──
-        for (int i = 1; i <= 13; i++)
-        {
-            CreateProgramLine(content, i);
-        }
-    }
-
-    private static void CreateProgramLine(GameObject parent, int index)
-    {
-        var line = FindOrCreate(parent, $"ProgramLine_{index:D2}");
-        SetLayoutElement(line, preferredHeight: 48);
-
-        // Slot background
-        var img = GetOrAdd<Image>(line);
-        img.color = new Color(0.11f, 0.11f, 0.17f, 1f);
-
-        // Horizontal layout: line number | command area | delete btn
-        var hlg = GetOrAdd<HorizontalLayoutGroup>(line);
-        hlg.padding = new RectOffset(0, 0, 0, 0);
-        hlg.spacing = 0;
-        hlg.childForceExpandWidth = false;
-        hlg.childForceExpandHeight = true;
-        hlg.childControlWidth = true;
-        hlg.childControlHeight = true;
-
-        // ── Line number ──
-        var numBg = FindOrCreate(line, "NumBg");
-        SetLayoutElement(numBg, preferredWidth: 36);
-        AddImage(numBg, index % 2 == 0
-            ? new Color(0.14f, 0.14f, 0.20f, 1f)
-            : new Color(0.12f, 0.12f, 0.18f, 1f));
-        var numLabel = FindOrCreate(numBg, "Num");
-        var numRT = GetOrAdd<RectTransform>(numLabel);
-        numRT.anchorMin = Vector2.zero;
-        numRT.anchorMax = Vector2.one;
-        numRT.sizeDelta = Vector2.zero;
-        var numTMP = GetOrAdd<TextMeshProUGUI>(numLabel);
-        numTMP.text = index.ToString("D2");
-        numTMP.fontSize = 11;
-        numTMP.color = new Color(1f, 0.42f, 0.21f, 1f);
-        numTMP.alignment = TextAlignmentOptions.Center;
-        numTMP.fontStyle = FontStyles.Bold;
-        GetOrAdd<CanvasRenderer>(numLabel);
-
-        // ── Drop slot area ──
-        var slot = FindOrCreate(line, "SlotArea");
-        SetLayoutElement(slot, flexibleWidth: 1);
-
-        var slotBg = GetOrAdd<Image>(slot);
-        slotBg.color = new Color(0.09f, 0.09f, 0.13f, 1f);
-
-        var slotHLG = GetOrAdd<HorizontalLayoutGroup>(slot);
-        slotHLG.padding = new RectOffset(10, 6, 4, 4);
-        slotHLG.spacing = 6;
-        slotHLG.childAlignment = TextAnchor.MiddleLeft;
-        slotHLG.childForceExpandWidth = false;
-        slotHLG.childForceExpandHeight = true;
-        slotHLG.childControlWidth = true;
-        slotHLG.childControlHeight = true;
-
-        // Slot placeholder text
-        var placeholderGO = FindOrCreate(slot, "Placeholder");
-        SetLayoutElement(placeholderGO, flexibleWidth: 1);
-        var phRT = GetOrAdd<RectTransform>(placeholderGO);
-        var phTMP = GetOrAdd<TextMeshProUGUI>(placeholderGO);
-        phTMP.text = "— пусто —";
-        phTMP.fontSize = 12;
-        phTMP.color = new Color(0.35f, 0.35f, 0.40f, 1f);
-        phTMP.alignment = TextAlignmentOptions.MidlineLeft;
-        phTMP.fontStyle = FontStyles.Italic;
-        GetOrAdd<CanvasRenderer>(placeholderGO);
-
-        // ── Delete button ──
-        var delBtnGO = FindOrCreate(line, "DeleteBtn");
-        SetLayoutElement(delBtnGO, preferredWidth: 32);
-        var delImg = GetOrAdd<Image>(delBtnGO);
-        delImg.color = new Color(0.0f, 0.0f, 0.0f, 0.0f);
-        var delBtn = GetOrAdd<Button>(delBtnGO);
-        delBtn.targetGraphic = delImg;
-        var delColors = delBtn.colors;
-        delColors.highlightedColor = new Color(0.6f, 0.1f, 0.1f, 0.5f);
-        delBtn.colors = delColors;
-
-        var delLabel = FindOrCreate(delBtnGO, "X");
-        var delLabelRT = GetOrAdd<RectTransform>(delLabel);
-        delLabelRT.anchorMin = Vector2.zero;
-        delLabelRT.anchorMax = Vector2.one;
-        delLabelRT.sizeDelta = Vector2.zero;
-        var delTMP = GetOrAdd<TextMeshProUGUI>(delLabel);
-        delTMP.text = "\u2715";
-        delTMP.fontSize = 12;
-        delTMP.color = new Color(0.5f, 0.5f, 0.5f, 0.7f);
-        delTMP.alignment = TextAlignmentOptions.Center;
-        GetOrAdd<CanvasRenderer>(delLabel);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  BOTTOM CONTROL PANEL  (bottom-left, RUN/STOP/STEP)
-    // ─────────────────────────────────────────────────
-
-    private static void CreateBottomControlPanel(GameObject parent)
-    {
-        var panel = FindOrCreate(parent, "BottomControlPanel");
-        SetupRT(panel, parent.GetComponent<RectTransform>(),
-            new Vector2(0, 0), new Vector2(0, 0), new Vector2(0, 0),
-            new Vector2(20, 20), new Vector2(320, 56));
-
-        AddDarkImage(panel, new Color(0.08f, 0.08f, 0.12f, 0.92f));
-
-        var hlg = GetOrAdd<HorizontalLayoutGroup>(panel);
-        hlg.padding = new RectOffset(8, 8, 8, 8);
-        hlg.spacing = 8;
-        hlg.childForceExpandWidth = true;
-        hlg.childForceExpandHeight = true;
-        hlg.childControlWidth = true;
-        hlg.childControlHeight = true;
-
-        // STOP
-        CreateControlButton(panel, "StopBtn", "\u25A0  STOP",
-            new Color(0.75f, 0.18f, 0.18f, 1f), new Color(0.9f, 0.25f, 0.25f, 1f));
-
-        // RUN
-        CreateControlButton(panel, "RunBtn", "\u25B6  RUN",
-            new Color(0.18f, 0.65f, 0.25f, 1f), new Color(0.25f, 0.85f, 0.35f, 1f));
-
-        // STEP
-        CreateControlButton(panel, "StepBtn", "\u25B8\u25B8 STEP",
-            new Color(0.1f, 0.45f, 0.75f, 1f), new Color(0.15f, 0.6f, 0.9f, 1f));
-
-        // RESET
-        CreateControlButton(panel, "ResetBtn", "\u21BB RESET",
-            new Color(0.25f, 0.25f, 0.35f, 1f), new Color(0.35f, 0.35f, 0.5f, 1f));
-    }
-
-    private static void CreateControlButton(GameObject parent, string name, string label,
-        Color normalColor, Color hoverColor)
-    {
-        var btnGO = FindOrCreate(parent, name);
-        var img = GetOrAdd<Image>(btnGO);
-        img.color = normalColor;
-
-        var btn = GetOrAdd<Button>(btnGO);
-        btn.targetGraphic = img;
-        var colors = btn.colors;
-        colors.normalColor = normalColor;
-        colors.highlightedColor = hoverColor;
-        colors.pressedColor = normalColor * 0.7f;
-        btn.colors = colors;
-
-        var textGO = FindOrCreate(btnGO, "Label");
-        var textRT = GetOrAdd<RectTransform>(textGO);
-        textRT.anchorMin = Vector2.zero;
-        textRT.anchorMax = Vector2.one;
-        textRT.sizeDelta = Vector2.zero;
-        var tmp = GetOrAdd<TextMeshProUGUI>(textGO);
-        tmp.text = label;
-        tmp.fontSize = 13;
-        tmp.color = Color.white;
-        tmp.fontStyle = FontStyles.Bold;
-        tmp.alignment = TextAlignmentOptions.Center;
-        GetOrAdd<CanvasRenderer>(textGO);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  BOTTOM ACTION PANEL  (orbit controls)
-    // ─────────────────────────────────────────────────
-
-    private static void CreateBottomActionPanel(GameObject parent)
-    {
-        var panel = FindOrCreate(parent, "BottomActionPanel");
-        SetupRT(panel, parent.GetComponent<RectTransform>(),
-            new Vector2(0, 0), new Vector2(0, 0), new Vector2(0, 0),
-            new Vector2(20, 84), new Vector2(204, 164));
-
-        AddDarkImage(panel, new Color(0.08f, 0.08f, 0.12f, 0.88f));
-
-        // Header
-        var hdr = FindOrCreate(panel, "ActionHeader");
-        var hdrRT = GetOrAdd<RectTransform>(hdr);
-        hdrRT.anchorMin = new Vector2(0, 1); hdrRT.anchorMax = new Vector2(1, 1);
-        hdrRT.pivot = new Vector2(0.5f, 1f);
-        hdrRT.anchoredPosition = new Vector2(0, 0);
-        hdrRT.sizeDelta = new Vector2(0, 22);
-        AddImage(hdr, new Color(0.12f, 0.12f, 0.18f, 1f));
-        var hdrTMP = GetOrAdd<TextMeshProUGUI>(FindOrCreate(hdr, "Lbl"));
-        hdrTMP.text = "УПРАВЛЕНИЕ";
-        hdrTMP.fontSize = 11;
-        hdrTMP.color = new Color(0f, 0.66f, 0.91f, 1f);
-        hdrTMP.alignment = TextAlignmentOptions.Center;
-        hdrTMP.fontStyle = FontStyles.Bold;
-        GetOrAdd<CanvasRenderer>(FindOrCreate(hdr, "Lbl"));
-
-        // 3-row grid: up / [left reset right] / down
-        float btnSize = 46f;
-        float gap = 4f;
-        float startX = 34f;
-
-        CreateOrbitBtn(panel, "RotateUpBtn", "\u2191", startX + btnSize + gap, 118f, btnSize);
-        CreateOrbitBtn(panel, "RotateLeftBtn", "\u2190", startX, 118f - btnSize - gap, btnSize);
-        CreateOrbitBtn(panel, "ResetOrbitBtn", "\u21BB", startX + btnSize + gap, 118f - btnSize - gap, btnSize);
-        CreateOrbitBtn(panel, "RotateRightBtn", "\u2192", startX + (btnSize + gap) * 2, 118f - btnSize - gap, btnSize);
-        CreateOrbitBtn(panel, "RotateDownBtn", "\u2193", startX + btnSize + gap, 118f - (btnSize + gap) * 2, btnSize);
-    }
-
-    private static void CreateOrbitBtn(GameObject parent, string name, string icon,
-        float x, float y, float size)
-    {
-        var btnGO = FindOrCreate(parent, name);
-        var rt = GetOrAdd<RectTransform>(btnGO);
-        rt.anchorMin = new Vector2(0, 0);
-        rt.anchorMax = new Vector2(0, 0);
-        rt.pivot = new Vector2(0f, 0f);
-        rt.anchoredPosition = new Vector2(x, y);
-        rt.sizeDelta = new Vector2(size, size);
-
-        var img = GetOrAdd<Image>(btnGO);
-        img.color = new Color(0.16f, 0.16f, 0.24f, 1f);
-
-        var btn = GetOrAdd<Button>(btnGO);
-        btn.targetGraphic = img;
-        var c = btn.colors;
-        c.highlightedColor = new Color(0.25f, 0.25f, 0.38f, 1f);
-        btn.colors = c;
-
-        var lbl = FindOrCreate(btnGO, "Icon");
-        var lblRT = GetOrAdd<RectTransform>(lbl);
-        lblRT.anchorMin = Vector2.zero; lblRT.anchorMax = Vector2.one;
-        lblRT.sizeDelta = Vector2.zero;
-        var tmp = GetOrAdd<TextMeshProUGUI>(lbl);
-        tmp.text = icon;
-        tmp.fontSize = 18;
-        tmp.color = Color.white;
-        tmp.alignment = TextAlignmentOptions.Center;
-        GetOrAdd<CanvasRenderer>(lbl);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  MESSAGE PANEL  (bottom center, notifications)
-    // ─────────────────────────────────────────────────
-
-    private static void CreateMessagePanel(GameObject parent)
-    {
-        var panel = FindOrCreate(parent, "MessagePanel");
-        SetupRT(panel, parent.GetComponent<RectTransform>(),
-            new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0.5f, 0),
-            new Vector2(0, 24), new Vector2(600, 52));
-
-        var img = GetOrAdd<Image>(panel);
-        img.color = new Color(0.05f, 0.05f, 0.08f, 0.0f); // invisible by default
-
-        var msgGO = FindOrCreate(panel, "MessageText");
-        var msgRT = GetOrAdd<RectTransform>(msgGO);
-        msgRT.anchorMin = Vector2.zero;
-        msgRT.anchorMax = Vector2.one;
-        msgRT.sizeDelta = Vector2.zero;
-        var msgTMP = GetOrAdd<TextMeshProUGUI>(msgGO);
-        msgTMP.text = "";
-        msgTMP.fontSize = 13;
-        msgTMP.color = Color.white;
-        msgTMP.alignment = TextAlignmentOptions.Center;
-        GetOrAdd<CanvasRenderer>(msgGO);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  POPUP LAYER
-    // ─────────────────────────────────────────────────
-
-    private static void CreatePopupLayer(GameObject parent)
-    {
-        var layer = FindOrCreate(parent, "PopupLayer");
-        SetupStretchRT(layer, parent.GetComponent<RectTransform>());
-
-        // Transparent blocker
-        var img = GetOrAdd<Image>(layer);
-        img.color = new Color(0, 0, 0, 0);
-        img.raycastTarget = false;
-        layer.SetActive(false); // hidden by default
-    }
-
-    // ─────────────────────────────────────────────────
-    //  DRAG GHOST LAYER
-    // ─────────────────────────────────────────────────
-
-    private static void CreateDragGhostLayer(GameObject parent)
-    {
-        var layer = FindOrCreate(parent, "DragGhostLayer");
-        SetupStretchRT(layer, parent.GetComponent<RectTransform>());
-
-        var img = GetOrAdd<Image>(layer);
-        img.color = new Color(0, 0, 0, 0);
-        img.raycastTarget = false;
-
-        // Sort order — поверх всего
-        var canvas = GetOrAdd<Canvas>(layer);
-        canvas.overrideSorting = true;
-        canvas.sortingOrder = 100;
-        GetOrAdd<GraphicRaycaster>(layer);
-    }
-
-    // ─────────────────────────────────────────────────
-    //  UTILITY HELPERS
-    // ─────────────────────────────────────────────────
-
-    private static GameObject FindOrCreate(GameObject parent, string childName)
-    {
-        if (parent == null) return new GameObject(childName);
-
-        Transform existing = parent.transform.Find(childName);
-        if (existing != null) return existing.gameObject;
-
-        var go = new GameObject(childName);
+        if (parent == null) return new GameObject(name);
+        var t = parent.transform.Find(name);
+        if (t != null) return t.gameObject;
+        var go = new GameObject(name);
         go.transform.SetParent(parent.transform, false);
         go.layer = LayerMask.NameToLayer("UI");
         return go;
     }
 
-    private static RectTransform SetupRT(GameObject go, RectTransform parent,
+    static void AnchorRT(GameObject go, GameObject parent,
         Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot,
-        Vector2 anchoredPos, Vector2 sizeDelta)
+        Vector2 anchoredPos, Vector2 size)
     {
-        var rt = GetOrAdd<RectTransform>(go);
-        rt.anchorMin = anchorMin;
-        rt.anchorMax = anchorMax;
-        rt.pivot = pivot;
+        var rt = Go<RectTransform>(go);
+        rt.anchorMin        = anchorMin;
+        rt.anchorMax        = anchorMax;
+        rt.pivot            = pivot;
         rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta = sizeDelta;
-        return rt;
+        rt.sizeDelta        = size;
     }
 
-    private static RectTransform SetupStretchRT(GameObject go, RectTransform parent)
+    static void StretchFill(GameObject go, GameObject parent)
     {
-        var rt = GetOrAdd<RectTransform>(go);
+        var rt = Go<RectTransform>(go);
+        rt.anchorMin        = Vector2.zero;
+        rt.anchorMax        = Vector2.one;
+        rt.pivot            = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = Vector2.zero;
+        rt.sizeDelta        = Vector2.zero;
+    }
+
+    static RectTransform FillRT(GameObject go, GameObject parent)
+    {
+        var rt = Go<RectTransform>(go);
         rt.anchorMin = Vector2.zero;
         rt.anchorMax = Vector2.one;
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = Vector2.zero;
         rt.sizeDelta = Vector2.zero;
+        rt.anchoredPosition = Vector2.zero;
         return rt;
     }
 
-    private static void SetupScrollViewFull(GameObject scrollRoot, out GameObject content)
+    static Image Img(GameObject go, Color color)
     {
-        GetOrAdd<RectTransform>(scrollRoot);
-
-        // ScrollRect only on root — no Mask here (Mask goes on viewport child)
-        var scrollImg = GetOrAdd<Image>(scrollRoot);
-        scrollImg.color = new Color(0, 0, 0, 0.01f);
-
-        // ScrollRect
-        var scrollRect = GetOrAdd<ScrollRect>(scrollRoot);
-        scrollRect.horizontal = false;
-        scrollRect.vertical = true;
-        scrollRect.movementType = ScrollRect.MovementType.Elastic;
-        scrollRect.scrollSensitivity = 25;
-        scrollRect.inertia = true;
-        scrollRect.decelerationRate = 0.135f;
-
-        // Viewport (same as scrollRoot for simplicity)
-        var viewport = FindOrCreate(scrollRoot, "Viewport");
-        SetupStretchRT(viewport, scrollRoot.GetComponent<RectTransform>());
-        GetOrAdd<Image>(viewport).color = new Color(0, 0, 0, 0);
-        GetOrAdd<Mask>(viewport).showMaskGraphic = false;
-        scrollRect.viewport = viewport.GetComponent<RectTransform>();
-
-        // Content
-        var contentGO = FindOrCreate(viewport, "Content");
-        var contentRT = GetOrAdd<RectTransform>(contentGO);
-        contentRT.anchorMin = new Vector2(0, 1);
-        contentRT.anchorMax = new Vector2(1, 1);
-        contentRT.pivot = new Vector2(0.5f, 1f);
-        contentRT.anchoredPosition = Vector2.zero;
-        contentRT.sizeDelta = new Vector2(0, 0);
-
-        scrollRect.content = contentRT;
-        content = contentGO;
+        Go<CanvasRenderer>(go);
+        var img = Go<Image>(go);
+        img.color = color;
+        return img;
     }
 
-    private static TextMeshProUGUI SetupLabel(GameObject go, GameObject parent,
-        string text, float size, Color color, FontStyles style)
+    static VerticalLayoutGroup Vlg(GameObject go,
+        int l, int r, int t, int b, float spacing)
     {
-        GetOrAdd<RectTransform>(go);
-        var tmp = GetOrAdd<TextMeshProUGUI>(go);
-        tmp.text = text;
-        tmp.fontSize = size;
-        tmp.color = color;
-        tmp.fontStyle = style;
+        var vlg = Go<VerticalLayoutGroup>(go);
+        vlg.padding = new RectOffset(l, r, t, b);
+        vlg.spacing = spacing;
+        return vlg;
+    }
+
+    static HorizontalLayoutGroup Hlg(GameObject go,
+        float spacing, int l, int r, int t, int b)
+    {
+        var hlg = Go<HorizontalLayoutGroup>(go);
+        hlg.padding = new RectOffset(l, r, t, b);
+        hlg.spacing = spacing;
+        return hlg;
+    }
+
+    static TextMeshProUGUI Tmp(GameObject go, string text, float size,
+        Color color, FontStyles style, TextAlignmentOptions align)
+    {
+        Go<CanvasRenderer>(go);
+        Go<RectTransform>(go);
+        var tmp = Go<TextMeshProUGUI>(go);
+        tmp.text       = text;
+        tmp.fontSize   = size;
+        tmp.color      = color;
+        tmp.fontStyle  = style;
+        tmp.alignment  = align;
         tmp.enableWordWrapping = false;
         tmp.overflowMode = TextOverflowModes.Ellipsis;
-        tmp.alignment = TextAlignmentOptions.MidlineLeft;
-        GetOrAdd<CanvasRenderer>(go);
         return tmp;
     }
 
-    private static void SetupHorizontalRow(GameObject go, GameObject parent, float height)
+    static void LE(GameObject go,
+        float prefW = -1, float prefH = -1,
+        float flexW = -1, float flexH = -1)
     {
-        GetOrAdd<RectTransform>(go);
-        SetLayoutElement(go, preferredHeight: height, flexibleWidth: 1);
-        var hlg = GetOrAdd<HorizontalLayoutGroup>(go);
-        hlg.childForceExpandWidth = false;
-        hlg.childForceExpandHeight = true;
-        hlg.childControlWidth = true;
-        hlg.childControlHeight = true;
-        hlg.spacing = 6;
-        hlg.childAlignment = TextAnchor.MiddleLeft;
+        var le = Go<LayoutElement>(go);
+        if (prefW >= 0) le.preferredWidth  = prefW;
+        if (prefH >= 0) le.preferredHeight = prefH;
+        if (flexW >= 0) le.flexibleWidth   = flexW;
+        if (flexH >= 0) le.flexibleHeight  = flexH;
     }
 
-    private static void AddImage(GameObject go, Color color)
+    static T Go<T>(GameObject go) where T : Component
     {
-        GetOrAdd<CanvasRenderer>(go);
-        var img = GetOrAdd<Image>(go);
-        img.color = color;
-    }
-
-    private static void AddDarkImage(GameObject go, Color color)
-    {
-        GetOrAdd<CanvasRenderer>(go);
-        var img = GetOrAdd<Image>(go);
-        img.color = color;
-    }
-
-    private static void SetLayoutElement(GameObject go,
-        float preferredWidth = -1, float preferredHeight = -1,
-        float flexibleWidth = -1, float flexibleHeight = -1)
-    {
-        var le = GetOrAdd<LayoutElement>(go);
-        if (preferredWidth >= 0) le.preferredWidth = preferredWidth;
-        if (preferredHeight >= 0) le.preferredHeight = preferredHeight;
-        if (flexibleWidth >= 0) le.flexibleWidth = flexibleWidth;
-        if (flexibleHeight >= 0) le.flexibleHeight = flexibleHeight;
-    }
-
-    private static T GetOrAdd<T>(GameObject go) where T : Component
-    {
-        var comp = go.GetComponent<T>();
-        if (comp == null) comp = go.AddComponent<T>();
-        return comp;
+        var c = go.GetComponent<T>();
+        return c != null ? c : go.AddComponent<T>();
     }
 }
 #endif
