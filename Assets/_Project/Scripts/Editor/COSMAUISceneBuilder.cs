@@ -63,6 +63,9 @@ public static class COSMAUISceneBuilder
         GameObject hud    = FindOrCreate(canvas, "HUDLayer");
         StretchFill(hud, canvas);
 
+        // ── Wipe ALL old children so nothing overlaps ──
+        CleanChildren(hud);
+
         // ── Build panels ──────────────────────────────
         BuildMissionPanel(hud);
         BuildModulePanel(hud);
@@ -81,13 +84,13 @@ public static class COSMAUISceneBuilder
     }
 
     // ══════════════════════════════════════════════════
-    //  1. MISSION PANEL   top-right, w=390 h=auto
+    //  1. MISSION PANEL   top-right, w=520 h=auto (1920x1080)
     // ══════════════════════════════════════════════════
     static void BuildMissionPanel(GameObject hud)
     {
         var p = FindOrCreate(hud, "MissionPanel");
         AnchorRT(p, hud, new Vector2(1,1), new Vector2(1,1), new Vector2(1,1),
-                 new Vector2(-10, -10), new Vector2(390, 0));
+                 new Vector2(-18, -18), new Vector2(520, 0));
         Img(p, BG_PANEL);
 
         var vlg = Vlg(p, 14, 14, 14, 14, 8);
@@ -119,13 +122,18 @@ public static class COSMAUISceneBuilder
     }
 
     // ══════════════════════════════════════════════════
-    //  2. MODULE PANEL   center-right, w=155 h=auto
+    //  2. MODULE PANEL   right side, w=210 h=auto (1920x1080)
+    //     Sits to the LEFT of ProgramPanel
+    //     ProgramPanel is 330px wide with 18px margin → left edge at -(330+18+8)=-356
+    //     ModulePanel right edge aligns with ProgramPanel left edge − gap
     // ══════════════════════════════════════════════════
     static void BuildModulePanel(GameObject hud)
     {
         var p = FindOrCreate(hud, "ModulePanel");
+        // anchor top-right; ProgramPanel is at (-18, ...) with w=330
+        // so ModulePanel anchoredPosition.x = -(18 + 330 + 8 + 210) = -566
         AnchorRT(p, hud, new Vector2(1,1), new Vector2(1,1), new Vector2(1,1),
-                 new Vector2(-10, -175), new Vector2(155, 0));
+                 new Vector2(-566, -230), new Vector2(210, 0));
         Img(p, BG_PANEL);
 
         var vlg = Vlg(p, 0, 0, 0, 0, 0);
@@ -232,17 +240,13 @@ public static class COSMAUISceneBuilder
     }
 
     // ══════════════════════════════════════════════════
-    //  3. PROGRAM PANEL   right side, w=230 h=470
+    //  3. PROGRAM PANEL   right side, w=330 h=620 (1920x1080)
     // ══════════════════════════════════════════════════
     static void BuildProgramPanel(GameObject hud)
     {
         var p = FindOrCreate(hud, "ProgramPanel");
         AnchorRT(p, hud, new Vector2(1,1), new Vector2(1,1), new Vector2(1,1),
-                 new Vector2(-10, -175), new Vector2(230, 470));
-
-        // Offset to sit right of ModulePanel
-        var rt = p.GetComponent<RectTransform>();
-        rt.anchoredPosition = new Vector2(-175, -175);
+                 new Vector2(-18, -230), new Vector2(330, 620));
 
         Img(p, BG_PANEL);
 
@@ -344,13 +348,13 @@ public static class COSMAUISceneBuilder
     }
 
     // ══════════════════════════════════════════════════
-    //  4. CONTROL PANEL   bottom-left  □ ▶ ─── ▷ ▷▷
+    //  4. CONTROL PANEL   bottom-left  □ ▶ ─── ▷ ▷▷  (1920x1080)
     // ══════════════════════════════════════════════════
     static void BuildControlPanel(GameObject hud)
     {
         var p = FindOrCreate(hud, "ControlPanel");
         AnchorRT(p, hud, new Vector2(0,0), new Vector2(0,0), new Vector2(0,0),
-                 new Vector2(10, 10), new Vector2(235, 54));
+                 new Vector2(18, 18), new Vector2(310, 62));
         Img(p, BG_PANEL);
 
         var hlg = Hlg(p, 8, 8, 8, 8, 8);
@@ -377,7 +381,7 @@ public static class COSMAUISceneBuilder
     static void MakeCtrlBtn(GameObject parent, string name, string icon, float w)
     {
         var go = FindOrCreate(parent, name);
-        LE(go, prefW: w, prefH: 38);
+        LE(go, prefW: w, prefH: 46);
         var img = Img(go, BG_BTN_CTRL);
         var btn = Go<Button>(go);
         btn.targetGraphic = img;
@@ -420,13 +424,13 @@ public static class COSMAUISceneBuilder
     }
 
     // ══════════════════════════════════════════════════
-    //  5. ACTION PANEL   bottom-right  ↩ ⧉ ⧋ 🗑
+    //  5. ACTION PANEL   bottom-right  ↩ ⧉ ⧋ 🗑  (1920x1080)
     // ══════════════════════════════════════════════════
     static void BuildActionPanel(GameObject hud)
     {
         var p = FindOrCreate(hud, "ActionPanel");
         AnchorRT(p, hud, new Vector2(1,0), new Vector2(1,0), new Vector2(1,0),
-                 new Vector2(-10, 10), new Vector2(200, 54));
+                 new Vector2(-18, 18), new Vector2(270, 62));
         Img(p, BG_PANEL);
 
         var hlg = Hlg(p, 6, 8, 8, 8, 8);
@@ -557,6 +561,16 @@ public static class COSMAUISceneBuilder
     // ══════════════════════════════════════════════════
     //  HELPERS
     // ══════════════════════════════════════════════════
+
+    /// <summary>Destroys all direct children of a GameObject (editor-safe).</summary>
+    static void CleanChildren(GameObject go)
+    {
+        var children = new System.Collections.Generic.List<GameObject>();
+        foreach (Transform child in go.transform)
+            children.Add(child.gameObject);
+        foreach (var child in children)
+            Object.DestroyImmediate(child);
+    }
 
     static GameObject FindOrCreate(GameObject parent, string name)
     {
